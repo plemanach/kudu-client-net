@@ -125,6 +125,19 @@ namespace Kudu.Client
             return tabletLocations;
         }
 
+         public async Task<ListTabletServersResponsePB> ListTabletServersAsync() {
+   
+            ListTabletServersRequest rpc = new ListTabletServersRequest(new ListTabletServersRequestPB());
+            await SendRpcToMasterAsync(rpc).ConfigureAwait(false);
+            var result = rpc.Response;
+
+             if (result.Error != null)
+                throw new MasterException(result.Error);
+
+             return result;
+        }
+
+
         public Task<GetTableSchemaResponsePB> GetTableSchemaAsync(string tableName)
         {
             var tableIdentifier = new TableIdentifierPB { TableName = tableName };
@@ -259,7 +272,7 @@ namespace Kudu.Client
 
             return result;
         }
-
+       
         public ScanBuilder NewScanBuilder(KuduTable table)
         {
             return new ScanBuilder(this, table);
