@@ -7,5 +7,10 @@ namespace Kudu.Client.Requests
         public override string ServiceName => MasterServiceName;
 
         public override string MethodName => "ConnectToMaster";
+
+        public ConnectToMasterRequest(KuduTable kuduTable) : base(kuduTable)
+        {
+
+        }
     }
 }

@@ -8,7 +8,7 @@ namespace Kudu.Client.Requests
 
         public override string MethodName => "GetTableLocations";
 
-        public GetTableLocationsRequest(GetTableLocationsRequestPB request)
+        public GetTableLocationsRequest(KuduTable kuduTable, GetTableLocationsRequestPB request) : base(kuduTable)
         {
             Request = request;
         }

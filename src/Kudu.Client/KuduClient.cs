@@ -24,10 +24,14 @@ namespace Kudu.Client
         /// </summary>
         private const int FetchTabletsPerPointLookup = 10;
 
+        public const string MASTER_TABLE_NAME_PLACEHOLDER =  "Kudu Master";
+
         private readonly KuduClientOptions _options;
         private readonly IKuduConnectionFactory _connectionFactory;
         private readonly ConnectionCache _connectionCache;
         private readonly Dictionary<string, TableLocationsCache> _tableLocations;
+
+        private readonly KuduTable _masterTable;
 
         private volatile ServerInfoCache _masterCache;
         private volatile string _location;
@@ -38,11 +42,12 @@ namespace Kudu.Client
             _connectionFactory = new KuduConnectionFactory();
             _connectionCache = new ConnectionCache(_connectionFactory);
             _tableLocations = new Dictionary<string, TableLocationsCache>();
+            _masterTable = new KuduTable(MASTER_TABLE_NAME_PLACEHOLDER, MASTER_TABLE_NAME_PLACEHOLDER);
         }
 
         public async Task<KuduTable> CreateTableAsync(TableBuilder table)
         {
-            var rpc = new CreateTableRequest(table.Build());
+            var rpc = new CreateTableRequest(_masterTable, table.Build());
 
             await SendRpcToMasterAsync(rpc).ConfigureAwait(false);
             var result = rpc.Response;
@@ -57,6 +62,28 @@ namespace Kudu.Client
             return await OpenTableAsync(tableIdentifier).ConfigureAwait(false);
         }
 
+        public ScanBuilder NewScannerBuilder(KuduTable table) {
+            //checkIsClosed();
+            return new ScanBuilder(this, table);
+        }
+
+        public async Task<ScanResponsePB> ScanNextRowsAsync(KuduScanner scanner)
+        {
+            var tablet = scanner.CurrentTablet;
+            var nextRequest = scanner.GetNextRequest();
+
+            ServerInfo info = tablet.GetServerInfo(nextRequest.ReplicaSelection, _location);
+
+            if (info == null) {
+                //TODO
+            }
+
+            var connection = await _connectionCache.GetConnectionAsync(info).ConfigureAwait(false);
+            await SendRpcToConnectionAsync(nextRequest, connection).ConfigureAwait(false);
+            var result = nextRequest.Response;
+            return result;
+        }
+
         /// <summary>
         /// Delete a table on the cluster with the specified name.
         /// </summary>
@@ -64,7 +91,7 @@ namespace Kudu.Client
         /// <param name="modifyExternalCatalogs">Whether to apply the deletion to external catalogs, such as the Hive Metastore.</param>
         public async Task DeleteTableAsync(string tableName, bool modifyExternalCatalogs = true)
         {
-            var rpc = new DeleteTableRequest(new DeleteTableRequestPB
+            var rpc = new DeleteTableRequest(_masterTable, new DeleteTableRequestPB
             {
                 Table = new TableIdentifierPB { TableName = tableName },
                 ModifyExternalCatalogs = modifyExternalCatalogs
@@ -80,7 +107,7 @@ namespace Kudu.Client
 
         public async Task<List<ListTablesResponsePB.TableInfo>> GetTablesAsync(string nameFilter = null)
         {
-            var rpc = new ListTablesRequest(new ListTablesRequestPB
+            var rpc = new ListTablesRequest(_masterTable, new ListTablesRequestPB
             {
                 NameFilter = nameFilter
             });
@@ -100,7 +127,7 @@ namespace Kudu.Client
         {
             // TODO: rate-limit master lookups.
 
-            var rpc = new GetTableLocationsRequest(new GetTableLocationsRequestPB
+            var rpc = new GetTableLocationsRequest(_masterTable, new GetTableLocationsRequestPB
             {
                 Table = new TableIdentifierPB { TableId = tableId.ToUtf8ByteArray() },
                 PartitionKeyStart = partitionKey,
@@ -109,7 +136,6 @@ namespace Kudu.Client
 
             await SendRpcToMasterAsync(rpc).ConfigureAwait(false);
             var result = rpc.Response;
-
             if (result.Error != null)
                 throw new MasterException(result.Error);
 
@@ -127,8 +153,8 @@ namespace Kudu.Client
 
          public async Task<ListTabletServersResponsePB> ListTabletServersAsync() {
    
-            ListTabletServersRequest rpc = new ListTabletServersRequest(new ListTabletServersRequestPB());
-            await SendRpcToMasterAsync(rpc).ConfigureAwait(false);
+            ListTabletServersRequest rpc = new ListTabletServersRequest(_masterTable, new ListTabletServersRequestPB());
+            await SendRpcToTablet(rpc);
             var result = rpc.Response;
 
              if (result.Error != null)
@@ -174,7 +200,7 @@ namespace Kudu.Client
             var server = GetServerInfo(tablet, ReplicaSelection.LeaderOnly);
             var connection = await _connectionCache.GetConnectionAsync(server).ConfigureAwait(false);
 
-            var rpc = new WriteRequest(new WriteRequestPB
+            var rpc = new WriteRequest(_masterTable, new WriteRequestPB
             {
                 TabletId = tablet.TabletId.ToUtf8ByteArray(),
                 Schema = table.SchemaPb.Schema,
@@ -257,7 +283,7 @@ namespace Kudu.Client
             var server = GetServerInfo(tablet, ReplicaSelection.LeaderOnly);
             var connection = await _connectionCache.GetConnectionAsync(server).ConfigureAwait(false);
 
-            var rpc = new WriteRequest(new WriteRequestPB
+            var rpc = new WriteRequest(_masterTable, new WriteRequestPB
             {
                 TabletId = tablet.TabletId.ToUtf8ByteArray(),
                 Schema = table.SchemaPb.Schema,
@@ -287,7 +313,7 @@ namespace Kudu.Client
 
         private async Task<GetTableSchemaResponsePB> GetTableSchemaAsync(TableIdentifierPB tableIdentifier)
         {
-            var rpc = new GetTableSchemaRequest(new GetTableSchemaRequestPB
+            var rpc = new GetTableSchemaRequest(_masterTable, new GetTableSchemaRequestPB
             {
                 Table = tableIdentifier
             });
@@ -303,7 +329,7 @@ namespace Kudu.Client
 
         private async Task WaitForTableDoneAsync(byte[] tableId)
         {
-            var rpc = new IsCreateTableDoneRequest(new IsCreateTableDoneRequestPB
+            var rpc = new IsCreateTableDoneRequest(_masterTable, new IsCreateTableDoneRequestPB
             {
                 Table = new TableIdentifierPB { TableId = tableId }
             });
@@ -334,7 +360,7 @@ namespace Kudu.Client
                 var serverInfo = await _connectionFactory.GetServerInfoAsync(
                     "master", location: null, master).ConfigureAwait(false);
                 var connection = await _connectionCache.GetConnectionAsync(serverInfo).ConfigureAwait(false);
-                var rpc = new ConnectToMasterRequest();
+                var rpc = new ConnectToMasterRequest(_masterTable);
                 await SendRpcToConnectionAsync(rpc, connection).ConfigureAwait(false);
                 var response = rpc.Response;
 
@@ -364,6 +390,58 @@ namespace Kudu.Client
             var connection = await _connectionCache.GetConnectionAsync(master).ConfigureAwait(false);
 
             await SendRpcToConnectionAsync(rpc, connection).ConfigureAwait(false);
+        }
+
+        internal async Task<TResponse> SendRpcToTablet<TRequest,TResponse>(KuduRpc<TRequest, TResponse> request)
+        {
+            String tableId = request.Table.TableId;
+            byte[] partitionKey = request.PartitionKey;
+
+            //Manage cache like java
+            //locateTablet
+
+            ServerInfo server = null;
+
+            if(!IsMasterTable(tableId))
+            {
+                var tablet = await GetTabletAsync(tableId, partitionKey);
+
+                if(tablet != null)
+                {
+                    server =  GetServerInfo(tablet, request.ReplicaSelection);
+
+                    request.Tablet = tablet;
+                } else {
+                
+                    throw new ApplicationException($"Cannot find server {tablet}");
+                }
+
+            } else {
+
+                // TODO: Don't allow this to happen in parallel.
+                if (_masterCache == null)
+                    await ConnectToClusterAsync().ConfigureAwait(false);
+
+                server = GetMasterServerInfo(request.ReplicaSelection);
+            }
+
+            if(server != null)
+            {
+               
+                var connection = await _connectionCache.GetConnectionAsync(server).ConfigureAwait(false);
+
+                await SendRpcToConnectionAsync(request, connection).ConfigureAwait(false);
+                var result = request.Response;
+                return result;
+            }
+            
+            throw new ApplicationException($"Cannot find tableId {tableId}");
+        }
+
+        private static bool IsMasterTable(String tableId) {
+            // Checking that it's the same instance so there's absolutely no chance of confusing the master
+            // 'table' for a user one.
+            return MASTER_TABLE_NAME_PLACEHOLDER == tableId;
         }
 
         private async Task SendRpcToConnectionAsync(KuduRpc rpc, KuduConnection connection)

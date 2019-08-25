@@ -21,6 +21,15 @@ namespace Kudu.Client
             TableId = schemaPb.TableId.ToStringUtf8();
         }
 
+        public KuduTable(string tableName, string tableId)
+        {
+            SchemaPb = new GetTableSchemaResponsePB();
+            SchemaPb.TableName = tableName;
+            SchemaPb.TableId = System.Text.UTF8Encoding.UTF8.GetBytes(tableId);
+            TableId = SchemaPb.TableId.ToStringUtf8();
+          
+        }
+
         public int NumReplicas => SchemaPb.NumReplicas;
 
         public string TableName => SchemaPb.TableName;

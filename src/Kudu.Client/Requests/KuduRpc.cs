@@ -5,6 +5,7 @@ using System.IO.Pipelines;
 using System.Threading.Tasks;
 using Kudu.Client.Connection;
 using Kudu.Client.Protocol.Rpc;
+using Kudu.Client.Tablet;
 using ProtoBuf;
 
 namespace Kudu.Client.Requests
@@ -15,11 +16,20 @@ namespace Kudu.Client.Requests
         protected const string MasterServiceName = "kudu.master.MasterService";
         protected const string TabletServerServiceName = "kudu.tserver.TabletServerService";
 
+        public KuduTable Table {get;}
+
+        public RemoteTablet Tablet {get; set;}
+
         public abstract string ServiceName { get; }
 
         public abstract string MethodName { get; }
 
         public virtual ReplicaSelection ReplicaSelection => ReplicaSelection.LeaderOnly;
+
+        public KuduRpc(KuduTable kuduTable)
+        {
+            Table = kuduTable;
+        }
 
         // TODO: Include numAttempts, externalConsistencyMode, etc.
 
@@ -31,7 +41,9 @@ namespace Kudu.Client.Requests
 
         public virtual Task ParseSidecarsAsync(ResponseHeader header, PipeReader reader, int length)
         {
-            throw new NotImplementedException();
+            //TODO: throw new NotImplementedException();
+
+            return Task.CompletedTask;
         }
     }
 
@@ -41,6 +53,13 @@ namespace Kudu.Client.Requests
 
         public TResponse Response { get; set; }
 
+        public byte[] PartitionKey { get{ return null;}}
+
+        public KuduRpc(KuduTable kuduTable): base(kuduTable)
+        {
+          
+        }
+ 
         public override void WriteRequest(Stream stream)
         {
             Serializer.SerializeWithLengthPrefix(stream, Request, PrefixStyle.Base128);

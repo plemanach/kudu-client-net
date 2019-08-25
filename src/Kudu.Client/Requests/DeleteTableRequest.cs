@@ -8,7 +8,7 @@ namespace Kudu.Client.Requests
 
         public override string MethodName => "DeleteTable";
 
-        public DeleteTableRequest(DeleteTableRequestPB request)
+        public DeleteTableRequest(KuduTable kuduTable, DeleteTableRequestPB request) : base(kuduTable)
         {
             Request = request;
         }

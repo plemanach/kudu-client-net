@@ -8,7 +8,7 @@ namespace Kudu.Client.Requests
 
         public override string MethodName => "GetTableSchema";
 
-        public GetTableSchemaRequest(GetTableSchemaRequestPB request)
+        public GetTableSchemaRequest(KuduTable kuduTable, GetTableSchemaRequestPB request) : base(kuduTable)
         {
             Request = request;
         }

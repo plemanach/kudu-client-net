@@ -22,9 +22,9 @@ namespace Kudu.Client.Builder
 
         internal ReplicaSelection ReplicaSelection { get; private set; } = ReplicaSelection.LeaderOnly;
 
-        internal int BatchSizeBytes { get; private set; } = 1024 * 1024;
+        internal uint BatchSizeBytes { get; private set; } = 1024 * 1024;
 
-        internal long Limit { get; private set; } = long.MaxValue;
+        internal ulong Limit { get; private set; } = long.MaxValue;
 
         internal bool CacheBlocks { get; private set; } = true;
 
@@ -84,7 +84,7 @@ namespace Kudu.Client.Builder
         /// because it will not truncate a rowResult in the middle.
         /// </summary>
         /// <param name="batchSizeBytes">A strictly positive number of bytes.</param>
-        public ScanBuilder SetBatchSizeBytes(int batchSizeBytes)
+        public ScanBuilder SetBatchSizeBytes(uint batchSizeBytes)
         {
             BatchSizeBytes = batchSizeBytes;
             return this;
@@ -95,7 +95,7 @@ namespace Kudu.Client.Builder
         /// There's no limit by default.
         /// </summary>
         /// <param name="limit">A positive long.</param>
-        public ScanBuilder SetLimit(long limit)
+        public ScanBuilder SetLimit(ulong limit)
         {
             Limit = limit;
             return this;
@@ -136,6 +136,6 @@ namespace Kudu.Client.Builder
             return this;
         }
 
-        public KuduScanner Build() => new KuduScanner(this);
+        public KuduScanner Build() => new KuduScanner(Client, Table, this);
     }
 }

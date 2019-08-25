@@ -8,7 +8,7 @@ namespace Kudu.Client.Requests
 
         public override string MethodName => "ListTabletServers";
 
-        public ListTabletServersRequest(ListTabletServersRequestPB request)
+        public ListTabletServersRequest(KuduTable kuduTable, ListTabletServersRequestPB request) : base(kuduTable)
         {
             Request = request;
         }

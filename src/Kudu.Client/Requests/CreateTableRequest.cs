@@ -8,7 +8,7 @@ namespace Kudu.Client.Requests
 
         public override string MethodName => "CreateTable";
 
-        public CreateTableRequest(CreateTableRequestPB request)
+        public CreateTableRequest(KuduTable kuduTable, CreateTableRequestPB request) : base(kuduTable)
         {
             Request = request;
         }

@@ -8,7 +8,7 @@ namespace Kudu.Client.Requests
 
         public override string MethodName => "Write";
 
-        public WriteRequest(WriteRequestPB request)
+        public WriteRequest(KuduTable kuduTable, WriteRequestPB request) : base(kuduTable)
         {
             Request = request;
         }

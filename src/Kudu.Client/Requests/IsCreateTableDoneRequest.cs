@@ -8,7 +8,7 @@ namespace Kudu.Client.Requests
 
         public override string MethodName => "IsCreateTableDone";
 
-        public IsCreateTableDoneRequest(IsCreateTableDoneRequestPB request)
+        public IsCreateTableDoneRequest(KuduTable kuduTable, IsCreateTableDoneRequestPB request) : base(kuduTable)
         {
             Request = request;
         }

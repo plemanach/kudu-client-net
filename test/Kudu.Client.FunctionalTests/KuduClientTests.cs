@@ -20,5 +20,17 @@ namespace Kudu.Client.FunctionalTests
             await Assert.ThrowsAnyAsync<SocketException>( () => kuduClient.ListTabletServersAsync());
            
         }
+
+        [SkippableFact]
+        public async Task ListTabletServersAsync()
+        {
+            //arrange
+            var kuduClient =  GetKuduClient();
+
+            // act & assert
+            var tablets = await kuduClient.ListTabletServersAsync();
+            
+            Assert.Equal(3, tablets.Servers.Count);
+        }
     }
 }
