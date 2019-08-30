@@ -138,10 +138,17 @@ namespace Kudu.Client.Connection
                     {
                         if (parserContext.HasSidecars)
                         {
-                            input.AdvanceTo(buffer.Start);
 
                             var length = parserContext.SidecarLength;
-                            return ProcessSidecarsAsync(input, message, header, length);
+
+                            var sideCars = buffer.ToArray();
+
+                             Console.WriteLine($"parse {parserContext.HeaderLength} {parserContext.TotalMessageLength} {messageLength}  {parserContext.Header.SidecarOffsets[0]} {sideCars.Length} {parserContext.MainMessageLength} Length {length}");
+                           
+                             input.AdvanceTo(buffer.Start);
+
+                             return ProcessSidecarsAsync(input, message, header, length);
+                          
                         }
                         else
                         {

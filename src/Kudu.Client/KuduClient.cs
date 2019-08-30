@@ -22,6 +22,7 @@ namespace Kudu.Client
         /// performing a lookup of a single partition (e.g. for a write), or
         /// re-looking-up a tablet with stale information.
         /// </summary>
+        public const ulong NO_TIMESTAMP = 0;
         private const int FetchTabletsPerPointLookup = 10;
 
         public const string MASTER_TABLE_NAME_PLACEHOLDER =  "Kudu Master";
@@ -67,7 +68,7 @@ namespace Kudu.Client
             return new ScanBuilder(this, table);
         }
 
-        public async Task<ScanResponsePB> ScanNextRowsAsync(KuduScanner scanner)
+        public async Task<RowResultIterator> ScanNextRowsAsync(KuduScanner scanner)
         {
             var tablet = scanner.CurrentTablet;
             var nextRequest = scanner.GetNextRequest();
@@ -80,8 +81,8 @@ namespace Kudu.Client
 
             var connection = await _connectionCache.GetConnectionAsync(info).ConfigureAwait(false);
             await SendRpcToConnectionAsync(nextRequest, connection).ConfigureAwait(false);
-            var result = nextRequest.Response;
-            return result;
+           
+            return RowResultIterator.MakeRowResultIterator(0, "", nextRequest.Table.Schema, nextRequest, false);;
         }
 
         /// <summary>

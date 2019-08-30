@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Linq;
 using System.Threading.Tasks;
 using Kudu.Client.Connection;
 using Kudu.Client.Protocol.Rpc;
@@ -19,6 +21,8 @@ namespace Kudu.Client.Requests
         public KuduTable Table {get;}
 
         public RemoteTablet Tablet {get; set;}
+
+        public List<byte[]> SideCars {get;} = new List<byte[]>();
 
         public abstract string ServiceName { get; }
 
@@ -39,11 +43,43 @@ namespace Kudu.Client.Requests
 
         public abstract void ParseProtobuf(ReadOnlySequence<byte> buffer);
 
-        public virtual Task ParseSidecarsAsync(ResponseHeader header, PipeReader reader, int length)
+        public virtual async Task ParseSidecarsAsync(ResponseHeader header, PipeReader reader, int length)
         {
             //TODO: throw new NotImplementedException();
+            var result = await reader.ReadAsync().ConfigureAwait(false);
+            var buffer = result.Buffer;
+          
+            int indexSideCar = 1;
+            uint remainingLength = (uint)length;
+            uint offsetSideCar = 0;
 
-            return Task.CompletedTask;
+             Console.WriteLine($"SideCars 1 count:{header.SidecarOffsets.Length}");
+
+            if(buffer.Length < length)
+            {
+                throw new ApplicationException("Missing sidecars data");
+            }
+
+            foreach(var offset in header.SidecarOffsets)
+            {
+                var sideCarLength = indexSideCar == header.SidecarOffsets.Length ?
+                    remainingLength : (header.SidecarOffsets[indexSideCar] - offset);
+                remainingLength -= sideCarLength;
+                indexSideCar++;
+
+                Console.WriteLine($"remainingLength {length}");
+               
+                Console.WriteLine($"Slive {offsetSideCar} : {sideCarLength}");
+
+                SideCars.Add(buffer.Slice(offsetSideCar, sideCarLength).ToArray());
+                offsetSideCar += sideCarLength;
+
+                Console.WriteLine($"SideCars size:{SideCars.First().Length}");
+            }
+            buffer = buffer.Slice(length);
+            reader.AdvanceTo(buffer.Start);
+
+            Console.WriteLine($"SideCars count:{SideCars.Count}");
         }
     }
 

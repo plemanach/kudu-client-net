@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using Kudu.Client;
 using Kudu.Client.Builder;
 using Kudu.Client.FunctionalTests.MiniCluster;

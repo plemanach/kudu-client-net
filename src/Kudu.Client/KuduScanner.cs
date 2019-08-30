@@ -1,7 +1,9 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Kudu.Client.Builder;
 using Kudu.Client.Requests;
 using Kudu.Client.Tablet;
+using Kudu.Client.Util;
 
 namespace Kudu.Client
 {
@@ -87,7 +89,7 @@ namespace Kudu.Client
             internal set {_tablet = value;} 
         }
 
-        public  async Task<Protocol.RowwiseRowBlockPB> NextRowsAsync()
+        public  async Task<RowResultIterator> NextRowsAsync()
         {
             if(closed)
             {
@@ -95,22 +97,27 @@ namespace Kudu.Client
 
             } else if (CurrentTablet == null)
             {
-               
-                var resp = await _kuduClient.SendRpcToTablet(GetOpenRequest());
-                return GotFirsttRow(resp);
+                var rpc = GetOpenRequest();
+                var resp = await _kuduClient.SendRpcToTablet(rpc);
+                return GotFirsttRow(rpc);
             }
 
-             var r = await _kuduClient.ScanNextRowsAsync(this);
-
-            return GotNextRow(r);
+            return await _kuduClient.ScanNextRowsAsync(this);            
         }
 
         ScanRequest GetOpenRequest() {
             //checkScanningNotStarted();
              return new ScanRequest(this, _table, new  Protocol.Tserver.ScanRequestPB{
+                CallSeqId = sequenceId,
+                
+                BatchSizeBytes = _scanBuilder.BatchSizeBytes,
                 NewScanRequest = new Protocol.Tserver.NewScanRequestPB{
-                     ReadMode = Protocol.ReadModePB.ReadLatest
-                }});
+                     ReadMode = Protocol.ReadModePB.ReadLatest,
+                     Limit = 50,
+                     PropagatedTimestamp = (ulong) EpochTime.ToUnixEpochMicros(DateTime.UtcNow)
+
+                }
+             });
         }
 
 
@@ -138,34 +145,34 @@ namespace Kudu.Client
             _tablet = null;
         }
 
-        private Protocol.RowwiseRowBlockPB GotFirsttRow(Protocol.Tserver.ScanResponsePB resp)
+        private RowResultIterator GotFirsttRow(ScanRequest resp)
         {
-            numRowsReturned += resp.Data.NumRows;
-            if (!resp.HasMoreResults) {  // We're done scanning this tablet.
+            numRowsReturned += resp.Response.Data.NumRows;
+            if (!resp.Response.HasMoreResults) {  // We're done scanning this tablet.
                 ScanFinished();
-                return resp.Data;
+                return RowResultIterator.MakeRowResultIterator(0, "", _table.Schema, resp, false);
             }
-            scannerId = resp.ScannerId;
+            scannerId = resp.Response.ScannerId;
             sequenceId++;
-            hasMore = resp.HasMoreResults;
+            hasMore = resp.Response.HasMoreResults;
 
             //if (LOG.isDebugEnabled()) {
             //    LOG.debug("Scanner " + Bytes.pretty(scannerId) + " opened on " + tablet);
             //}
 
-            return resp.Data;
+            return RowResultIterator.MakeRowResultIterator(0, "", _table.Schema, resp, false);
         }
 
-        private Protocol.RowwiseRowBlockPB GotNextRow(Protocol.Tserver.ScanResponsePB resp)
+        private RowResultIterator GotNextRow(ScanRequest resp)
         {
-            numRowsReturned += resp.Data.NumRows;
-            if (!resp.HasMoreResults) {  // We're done scanning this tablet.
+            numRowsReturned += resp.Response.Data.NumRows;
+            if (!resp.Response.HasMoreResults) {  // We're done scanning this tablet.
                 ScanFinished();
-                return resp.Data;
+                return RowResultIterator.MakeRowResultIterator(0, "", _table.Schema, resp, false);
             }
             sequenceId++;
-            hasMore = resp.HasMoreResults;
-            return resp.Data;
+            hasMore = resp.Response.HasMoreResults;
+            return RowResultIterator.MakeRowResultIterator(0, "", _table.Schema, resp, false);
         }
     }
 }
