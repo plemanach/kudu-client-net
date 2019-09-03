@@ -35,6 +35,8 @@ namespace Kudu.Client
         /// </summary>
         public int RowAllocSize { get; }
 
+        public int RowSize {get;}
+
         public int VarLengthColumnCount { get; }
 
         public bool HasNullableColumns { get; }
@@ -128,6 +130,7 @@ namespace Kudu.Client
             _columnsById = columnsById;
             _columnsByIndex = columnsByIndex;
             RowAllocSize = size;
+            RowSize = GetRowSize(_columnsByIndex);
             VarLengthColumnCount = varLenCnt;
             HasNullableColumns = hasNulls;
         }
@@ -193,6 +196,23 @@ namespace Kudu.Client
                 default:
                     return false;
             }
+        }
+
+        private static int GetRowSize(ColumnSchema[] columns) {
+            int totalSize = 0;
+            bool hasNullables = false;
+            foreach (ColumnSchema column in columns) {
+                totalSize += GetTypeSize(column.Type);
+                hasNullables |= column.IsNullable;
+            }
+            if (hasNullables) {
+                totalSize += GetBitSetSize(columns.Length);
+            }
+            return totalSize;
+        }
+
+        private static int GetBitSetSize(int items) {
+            return (items + 7) / 8;
         }
     }
 }

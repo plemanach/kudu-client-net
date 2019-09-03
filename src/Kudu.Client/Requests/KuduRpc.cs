@@ -53,8 +53,6 @@ namespace Kudu.Client.Requests
             uint remainingLength = (uint)length;
             uint offsetSideCar = 0;
 
-             Console.WriteLine($"SideCars 1 count:{header.SidecarOffsets.Length}");
-
             if(buffer.Length < length)
             {
                 throw new ApplicationException("Missing sidecars data");
@@ -67,19 +65,11 @@ namespace Kudu.Client.Requests
                 remainingLength -= sideCarLength;
                 indexSideCar++;
 
-                Console.WriteLine($"remainingLength {length}");
-               
-                Console.WriteLine($"Slive {offsetSideCar} : {sideCarLength}");
-
                 SideCars.Add(buffer.Slice(offsetSideCar, sideCarLength).ToArray());
                 offsetSideCar += sideCarLength;
-
-                Console.WriteLine($"SideCars size:{SideCars.First().Length}");
             }
             buffer = buffer.Slice(length);
             reader.AdvanceTo(buffer.Start);
-
-            Console.WriteLine($"SideCars count:{SideCars.Count}");
         }
     }
 

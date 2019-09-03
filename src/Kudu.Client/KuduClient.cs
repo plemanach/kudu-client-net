@@ -46,6 +46,30 @@ namespace Kudu.Client
             _masterTable = new KuduTable(MASTER_TABLE_NAME_PLACEHOLDER, MASTER_TABLE_NAME_PLACEHOLDER);
         }
 
+        public async Task<KuduTable> CreateTableAsync(String tableName, Schema schema, TableBuilder table)
+        {
+            table = table.SetTableName(tableName);
+
+            for(int index = 0; index < schema.ColumnCount; index++)
+            {
+                var column = schema.GetColumn(index);
+
+                table = table.AddColumn(builder => {
+                        builder.Name = column.Name;
+                        builder.IsKey = column.IsKey;
+                        builder.IsNullable = column.IsNullable;
+                        if(column.TypeAttributes != null)
+                        {
+                            builder.Precision = column.TypeAttributes.Precision;
+                            builder.Scale = column.TypeAttributes.Scale;
+                        }
+                        builder.Type = column.Type;
+                        builder.Encoding = column.Encoding;
+                 });
+            }
+            return await CreateTableAsync(table);
+        }
+
         public async Task<KuduTable> CreateTableAsync(TableBuilder table)
         {
             var rpc = new CreateTableRequest(_masterTable, table.Build());

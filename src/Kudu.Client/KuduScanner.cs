@@ -99,6 +99,10 @@ namespace Kudu.Client
             {
                 var rpc = GetOpenRequest();
                 var resp = await _kuduClient.SendRpcToTablet(rpc);
+                if(resp.Error != null)
+                {
+                    throw new Exception(resp.Error.code.ToString());
+                }
                 return GotFirsttRow(rpc);
             }
 
@@ -107,17 +111,26 @@ namespace Kudu.Client
 
         ScanRequest GetOpenRequest() {
             //checkScanningNotStarted();
-             return new ScanRequest(this, _table, new  Protocol.Tserver.ScanRequestPB{
-                CallSeqId = sequenceId,
-                
-                BatchSizeBytes = _scanBuilder.BatchSizeBytes,
-                NewScanRequest = new Protocol.Tserver.NewScanRequestPB{
-                     ReadMode = Protocol.ReadModePB.ReadLatest,
-                     Limit = 50,
-                     PropagatedTimestamp = (ulong) EpochTime.ToUnixEpochMicros(DateTime.UtcNow)
 
-                }
+            var projectedColumns = ProtobufHelper.SchemaToPb(_table.Schema);
+
+            var scanRequestPB = new Protocol.Tserver.NewScanRequestPB{
+                     ReadMode = Protocol.ReadModePB.ReadLatest,
+                     Limit = _scanBuilder.Limit,
+                     CacheBlocks = _scanBuilder.CacheBlocks,
+                     OrderMode = Protocol.OrderModePB.Unordered,
+            };
+
+            scanRequestPB.ProjectedColumns.AddRange(projectedColumns);
+
+             var scanRequest = new ScanRequest(this, _table, 
+             new Protocol.Tserver.ScanRequestPB{
+                 BatchSizeBytes = _scanBuilder.BatchSizeBytes,
+                 CallSeqId = sequenceId,
+                 NewScanRequest = scanRequestPB
              });
+           
+            return scanRequest;
         }
 
 

@@ -11,9 +11,9 @@ namespace Kudu.Client
         private Schema _schema;
         private readonly ReadOnlySequence<byte> _rowData;
         private readonly ReadOnlySequence<byte> _indirectData;
-        private int numRows;
-        private int currentRow = 0;
-        private RowResult sharedRowResult;
+        private int _numRows;
+        private int _currentRow = 0;
+        private RowResult _sharedRowResult;
 
 
         private RowResultIterator(Schema schema,
@@ -24,10 +24,10 @@ namespace Kudu.Client
         {
             
             this._schema = schema;
-            this.numRows = numRows;
+            this._numRows = numRows;
             this._rowData = rowData;
             this._indirectData = indirectBs;
-            this.sharedRowResult = (reuseRowResult && numRows != 0) ?
+            this._sharedRowResult = (reuseRowResult && numRows != 0) ?
                 new RowResult(_schema, this._rowData, this._indirectData, -1) : null;
         }
 
@@ -49,14 +49,11 @@ namespace Kudu.Client
             byte[]  bs = (data.Response.Data.ShouldSerializeRowsSidecar() == true) ? 
                                             data.SideCars[data.Response.Data.RowsSidecar] : ReadOnlySequence<byte>.Empty.ToArray();
             byte[]  indirectBs = (data.Response.Data.ShouldSerializeIndirectDataSidecar() == true) ?
-                                                    data.SideCars[data.Response.Data.IndirectDataSidecar] : ReadOnlySequence<byte>.Empty.ToArray();
+                                            data.SideCars[data.Response.Data.IndirectDataSidecar] : ReadOnlySequence<byte>.Empty.ToArray();
             int numRows = data.Response.Data.NumRows;
 
-            Console.WriteLine($"rows side car length {bs.Length}");
-            
-
             // Integrity check
-            int rowSize = schema.RowAllocSize;
+            int rowSize = schema.RowSize;
             int expectedSize = numRows * rowSize;
             if (expectedSize != bs.Length) 
             {
@@ -69,14 +66,14 @@ namespace Kudu.Client
         
         public IEnumerator<RowResult> GetEnumerator()
         {
-            while(this.currentRow < numRows)
+            while(this._currentRow < _numRows)
             {
                 // If sharedRowResult is not null, we should reuse it for every next call.
-                if (sharedRowResult != null) {
-                    this.sharedRowResult.AdvancePointerTo(this.currentRow++);
-                    yield return sharedRowResult;
+                if (_sharedRowResult != null) {
+                    this._sharedRowResult.AdvancePointerTo(this._currentRow++);
+                    yield return _sharedRowResult;
                 } else {
-                    yield return new RowResult(_schema, _rowData, _indirectData, this.currentRow++);
+                    yield return new RowResult(_schema, _rowData, _indirectData, this._currentRow++);
                 }
             }
         }
@@ -86,6 +83,6 @@ namespace Kudu.Client
             return this.GetEnumerator();
         }
 
-        public int NumRows { get{ return numRows;} }
+        public int NumRows { get{ return _numRows;} }
     }
 }
